@@ -1,16 +1,21 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const passport = require('passport');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
-const errorHandler = require('./middleware/errorMiddleware');
+const morgan = require('morgan');
+const cloudinary = require('cloudinary').v2;
 
-// Import routes
-const authRoutes = require('./routes/authRoutes');
-const ticketRoutes = require('./routes/ticketRoutes');
-const userRoutes = require('./routes/userRoutes');
-const adminRoutes = require('./routes/adminRoutes');
+// Database connection
+require('./config/db')();
+
+// Passport config
+require('./config/passport')(passport);
+
+// Cloudinary config
+require('./config/cloudinary')();
 
 const app = express();
 
@@ -22,28 +27,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(passport.initialize());
+app.use(morgan('dev'));
 
-// Database connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log(err));
+// Static folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/tickets', ticketRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/v1/auth', require('./routes/authRoutes'));
+app.use('/api/v1/tickets', require('./routes/ticketRoutes'));
+app.use('/api/v1/users', require('./routes/userRoutes'));
+app.use('/api/v1/admin', require('./routes/adminRoutes'));
 
 // Error handling middleware
-app.use(errorHandler);
-
-// Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../client', 'build', 'index.html'));
-  });
-}
+app.use(require('./middleware/errorMiddleware'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
